@@ -1,5 +1,4 @@
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-import os
+from playwright.sync_api import sync_playwright
 import time
 
 URL = "https://siga.marcacaodeatendimento.pt/"
@@ -10,17 +9,24 @@ TARGET_LOCATIONS = [
     "Loja de Cidadão Laranjeiras",
 ]
 
-SKIP_LOCATIONS = [
-    "Loja de Cidadão Mafra",
-    "Loja de Cidadão Cascais",
-]
 
-
-def select_option(page, label_text, option_text):
-    field = page.get_by_text(label_text, exact=False).locator("..").locator("input, select, div").first
-    page.get_by_text(label_text, exact=False).click()
-    time.sleep(1)
-    page.get_by_text(option_text, exact=True).click()
+def select_by_text(page, select_id, text):
+    page.evaluate(
+        """
+        ({ selectId, text }) => {
+            const select = document.querySelector(`#${selectId}`);
+            const option = [...select.options].find(o => o.text.trim() === text);
+            if (!option) throw new Error(`Option not found: ${text}`);
+            select.value = option.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            if (window.$) {
+                window.$(`#${selectId}`).selectpicker('refresh');
+            }
+        }
+        """,
+        {"selectId": select_id, "text": text},
+    )
+    time.sleep(2)
 
 
 def main():
@@ -31,59 +37,47 @@ def main():
         print("Opening SIGA...")
         page.goto(URL, wait_until="networkidle", timeout=60000)
 
-        try:
-            page.get_by_text("Concordo", exact=True).click(timeout=5000)
-        except:
-            pass
-
         print("Opening Consultar filas de espera...")
         page.get_by_role("link", name="Consultar filas de espera").click(timeout=30000)
-        
         page.wait_for_load_state("networkidle")
+        time.sleep(2)
 
         print("Selecting Distrito...")
-        page.get_by_label("Distrito").click()
-        page.get_by_text("Lisbon", exact=True).click()
+        select_by_text(page, "IdDistrito", "Lisbon")
 
         print("Selecting Entidade...")
-        page.get_by_label("Entidade").click()
-        page.get_by_text("Instituto da Segurança Social, IP", exact=True).click()
+        select_by_text(page, "IdEntidade", "Instituto da Segurança Social, IP")
 
         print("Selecting Senha...")
-        page.get_by_label("Senha").click()
-        page.get_by_text("Geral", exact=True).click()
+        select_by_text(page, "IdSenha", "Geral")
 
         print("Searching...")
-        page.get_by_text("Pesquisar", exact=True).click()
-        page.wait_for_load_state("networkidle")
-        time.sleep(5)
+        page.get_by_role("button", name="Pesquisar").click(timeout=30000)
+        time.sleep(6)
 
         found = False
 
         for page_number in range(1, 4):
-            print(f"Checking page {page_number}...")
+            print(f"Checking result page {page_number}...")
 
             rows = page.locator("table tbody tr")
             count = rows.count()
 
             for i in range(count):
                 row = rows.nth(i)
-                row_text = row.inner_text()
-
-                if any(skip in row_text for skip in SKIP_LOCATIONS):
-                    continue
+                text = row.inner_text()
 
                 for location in TARGET_LOCATIONS:
-                    if location in row_text and "Tirar Senha" in row_text:
-                        print(f"FOUND TICKET: {location}")
+                    if location in text and "Tirar Senha" in text:
+                        print(f"FOUND: {location}")
 
                         row.get_by_text("Tirar Senha", exact=True).click()
                         time.sleep(2)
 
-                        page.locator("input[type='email'], input").last.fill(EMAIL)
-                        page.get_by_text("Continuar", exact=True).click()
+                        page.locator("input").last.fill(EMAIL)
+                        page.get_by_role("button", name="Continuar").click()
 
-                        print("Ticket requested successfully.")
+                        print("Ticket request submitted.")
                         found = True
                         break
 
