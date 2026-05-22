@@ -43,7 +43,7 @@ def main():
         time.sleep(2)
 
         print("Selecting Distrito...")
-        select_by_text(page, "IdDistrito", "Lisbon")
+        select_by_text(page, "IdDistrito", "Lisboa")
 
         print("Selecting Entidade...")
         select_by_text(page, "IdEntidade", "Instituto da Segurança Social, IP")
