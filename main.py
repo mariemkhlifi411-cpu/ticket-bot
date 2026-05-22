@@ -37,8 +37,8 @@ def main():
             pass
 
         print("Opening Consultar filas de espera...")
-        page.get_by_text("Consultar filas de espera", exact=True).click(timeout=30000)
-
+        page.get_by_role("link", name="Consultar filas de espera").click(timeout=30000)
+        
         page.wait_for_load_state("networkidle")
 
         print("Selecting Distrito...")
